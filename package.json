@@ -1,0 +1,45 @@
+{
+  "name": "opentui-gameboy",
+  "version": "0.1.0",
+  "description": "A plug-and-play GameBoy emulator component for @opentui/core",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target node --external @opentui/core --external serverboy && tsc --emitDeclarationOnly",
+    "check": "tsc --noEmit",
+    "prepublishOnly": "bun run build",
+    "dev:example": "bun run examples/basic/index.ts",
+    "test": "bun test",
+    "preflight": "bun run check && bun run test && bun run build"
+  },
+  "keywords": [
+    "gameboy",
+    "emulator",
+    "tui",
+    "terminal",
+    "opentui"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "@opentui/core": ">=0.1.75"
+  },
+  "dependencies": {
+    "serverboy": "^0.0.7"
+  },
+  "devDependencies": {
+    "@opentui/core": "0.1.75",
+    "@types/bun": "^1.0.0",
+    "typescript": "^5.0.0"
+  }
+}
