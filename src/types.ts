@@ -1,6 +1,11 @@
 export const GB_NATIVE_WIDTH = 160;
 export const GB_NATIVE_HEIGHT = 144;
 
+// Terminal resolution (half-blocks)
+export const GB_TERM_WIDTH = 160;
+export const GB_TERM_HEIGHT = 72;
+export const GB_MIN_TERM_HEIGHT = GB_TERM_HEIGHT + 4;
+
 /**
  * Theme configuration for the GameBoy emulator UI
  */

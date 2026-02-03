@@ -15,6 +15,9 @@ import {
   RomFile,
   DEFAULT_SAVE_KEYBINDING,
   DEFAULT_LOAD_KEYBINDING,
+  GB_TERM_WIDTH,
+  GB_TERM_HEIGHT,
+  GB_MIN_TERM_HEIGHT,
 } from '../types';
 import { gameboyLog, closeLogger } from '../utils/logger';
 import { safeRemove, createBackground, createWarning, formatKeybinding } from './components';
@@ -28,6 +31,15 @@ export class GameboyUI {
   private engine?: GameboyEngine;
   private isRunning: boolean = false;
   private gameboyScreen?: FrameBufferRenderable;
+  private heldKeys = new Set<number>();
+  private keyPressTimestamps = new Map<number, number>();
+  private escapeCount = 0;
+  private escapeTimeout: ReturnType<typeof setTimeout> | null = null;
+  private ctrlCCount = 0;
+  private ctrlCTimeout: ReturnType<typeof setTimeout> | null = null;
+  private gameLoopCount = 0;
+  private lastTerminalWidth = 0;
+  private lastTerminalHeight = 0;
 
   constructor(renderer: CliRenderer, options: GameboyOptions) {
     this.renderer = renderer;
@@ -37,21 +49,17 @@ export class GameboyUI {
   public async showRomSelection(): Promise<void> {
     const { romDirectory, theme, onExit } = this.options;
 
-    const backgroundOverlay = createBackground(this.renderer);
-    this.renderer.root.add(backgroundOverlay);
+    this.renderer.root.add(createBackground(this.renderer));
 
     const container = new BoxRenderable(this.renderer, {
       id: 'gameboy-container',
       width: '100%',
       height: '100%',
       position: 'absolute',
-      left: 0,
-      top: 0,
-      zIndex: 1000,
       flexDirection: 'column',
       justifyContent: 'center',
       alignItems: 'center',
-      shouldFill: false,
+      zIndex: 1000,
     });
     this.renderer.root.add(container);
 
@@ -73,14 +81,15 @@ export class GameboyUI {
     }
 
     let selectedIndex = 0;
-    const titleText = new TextRenderable(this.renderer, {
-      id: 'gameboy-title',
-      content: 'Select a Game',
-      fg: RGBA.fromHex(theme.accent),
-      attributes: TextAttributes.BOLD,
-      marginBottom: 2,
-    });
-    container.add(titleText);
+    container.add(
+      new TextRenderable(this.renderer, {
+        id: 'gameboy-title',
+        content: 'Select a Game',
+        fg: RGBA.fromHex(theme.accent),
+        attributes: TextAttributes.BOLD,
+        marginBottom: 2,
+      }),
+    );
 
     const listContainer = new BoxRenderable(this.renderer, {
       id: 'gameboy-list',
@@ -94,56 +103,46 @@ export class GameboyUI {
 
     const romItemBoxes: BoxRenderable[] = [];
     const romItemTexts: TextRenderable[] = [];
+
     roms.forEach((rom, i) => {
-      const itemBox = new BoxRenderable(this.renderer, {
+      const box = new BoxRenderable(this.renderer, {
         id: `gameboy-rom-box-${i}`,
         backgroundColor: i === selectedIndex ? RGBA.fromHex(theme.accent) : undefined,
         paddingLeft: 1,
         paddingRight: 1,
       });
-      const itemText = new TextRenderable(this.renderer, {
+      const text = new TextRenderable(this.renderer, {
         id: `gameboy-rom-${i}`,
         content: rom.name,
         fg: i === selectedIndex ? RGBA.fromHex(theme.bg) : RGBA.fromHex(theme.text),
       });
-      itemBox.add(itemText);
-      romItemBoxes.push(itemBox);
-      romItemTexts.push(itemText);
-      listContainer.add(itemBox);
+      box.add(text);
+      listContainer.add(box);
+      romItemBoxes.push(box);
+      romItemTexts.push(text);
     });
 
-    const selectionHelpText = new TextRenderable(this.renderer, {
-      id: 'gameboy-select-help',
-      content: '↑↓: Navigate | ENTER: Play | ESC: Back',
-      fg: RGBA.fromHex(theme.dim),
-      marginTop: 2,
-    });
-    container.add(selectionHelpText);
-
-    const updateSelection = () => {
-      romItemBoxes.forEach((box, i) => {
-        box.backgroundColor = i === selectedIndex ? RGBA.fromHex(theme.accent) : undefined;
-        romItemTexts[i].fg =
-          i === selectedIndex ? RGBA.fromHex(theme.bg) : RGBA.fromHex(theme.text);
-      });
-      this.renderer.requestRender();
-    };
+    container.add(
+      new TextRenderable(this.renderer, {
+        id: 'gameboy-select-help',
+        content: '↑↓: Navigate | ENTER: Play | ESC: Back',
+        fg: RGBA.fromHex(theme.dim),
+        marginTop: 2,
+      }),
+    );
 
     const selectionHandler = (key: KeyEvent) => {
       if (key.name === 'escape') {
         this.renderer.keyInput.off('keypress', selectionHandler);
-        this.renderer.root.remove(container.id);
-        this.renderer.root.remove('gameboy-background');
+        safeRemove(this.renderer, container.id);
+        safeRemove(this.renderer, 'gameboy-background');
         onExit();
-        return;
-      }
-
-      if (key.name === 'up') {
+      } else if (key.name === 'up') {
         selectedIndex = (selectedIndex - 1 + roms.length) % roms.length;
-        updateSelection();
+        this.updateRomList(romItemBoxes, romItemTexts, selectedIndex);
       } else if (key.name === 'down') {
         selectedIndex = (selectedIndex + 1) % roms.length;
-        updateSelection();
+        this.updateRomList(romItemBoxes, romItemTexts, selectedIndex);
       } else if (key.name === 'return' || key.name === 'enter') {
         this.renderer.keyInput.off('keypress', selectionHandler);
         this.startGame(roms[selectedIndex], container);
@@ -154,29 +153,42 @@ export class GameboyUI {
     this.renderer.requestRender();
   }
 
+  private updateRomList(boxes: BoxRenderable[], texts: TextRenderable[], selectedIndex: number) {
+    const { theme } = this.options;
+    boxes.forEach((box, i) => {
+      const isSelected = i === selectedIndex;
+      box.backgroundColor = isSelected ? RGBA.fromHex(theme.accent) : undefined;
+      if (texts[i]) {
+        texts[i].fg = isSelected ? RGBA.fromHex(theme.bg) : RGBA.fromHex(theme.text);
+      }
+    });
+    this.renderer.requestRender();
+  }
+
   private showNoRoms(container: BoxRenderable) {
     const { theme, onExit, romDirectory } = this.options;
-    const noRomsText = new TextRenderable(this.renderer, {
-      id: 'gameboy-no-roms',
-      content: `No ROMs found in ${romDirectory}`,
-      fg: RGBA.fromHex(theme.dim),
-      attributes: TextAttributes.BOLD,
-    });
-    container.add(noRomsText);
-
-    const exitText = new TextRenderable(this.renderer, {
-      id: 'gameboy-exit',
-      content: 'Press ESC to go back',
-      fg: RGBA.fromHex(theme.accent),
-      marginTop: 2,
-    });
-    container.add(exitText);
+    container.add(
+      new TextRenderable(this.renderer, {
+        id: 'gameboy-no-roms',
+        content: `No ROMs found in ${romDirectory}`,
+        fg: RGBA.fromHex(theme.dim),
+        attributes: TextAttributes.BOLD,
+      }),
+    );
+    container.add(
+      new TextRenderable(this.renderer, {
+        id: 'gameboy-exit',
+        content: 'Press ESC to go back',
+        fg: RGBA.fromHex(theme.accent),
+        marginTop: 2,
+      }),
+    );
 
     const exitHandler = (key: KeyEvent) => {
       if (key.name === 'escape') {
         this.renderer.keyInput.off('keypress', exitHandler);
-        this.renderer.root.remove(container.id);
-        this.renderer.root.remove('gameboy-background');
+        safeRemove(this.renderer, container.id);
+        safeRemove(this.renderer, 'gameboy-background');
         onExit();
       }
     };
@@ -206,13 +218,10 @@ export class GameboyUI {
       container.visible = false;
       this.renderer.root.remove(container.id);
 
-      const GB_SCREEN_WIDTH = 160;
-      const GB_SCREEN_HEIGHT = 72;
-
       // Check terminal size
       if (
-        this.renderer.terminalWidth < GB_SCREEN_WIDTH ||
-        this.renderer.terminalHeight < GB_SCREEN_HEIGHT + 4
+        this.renderer.terminalWidth < GB_TERM_WIDTH ||
+        this.renderer.terminalHeight < GB_MIN_TERM_HEIGHT
       ) {
         this.handleSmallTerminal(rom, romBuffer);
         return;
@@ -225,20 +234,17 @@ export class GameboyUI {
   }
 
   private setupGame(rom: RomFile, romBuffer: Buffer) {
-    const GB_SCREEN_WIDTH = 160;
-    const GB_SCREEN_HEIGHT = 72;
     const { theme } = this.options;
-
-    const left = Math.floor((this.renderer.terminalWidth - GB_SCREEN_WIDTH) / 2);
-    const top = Math.floor((this.renderer.terminalHeight - GB_SCREEN_HEIGHT) / 2);
+    const left = Math.max(0, Math.floor((this.renderer.terminalWidth - GB_TERM_WIDTH) / 2));
+    const top = Math.max(0, Math.floor((this.renderer.terminalHeight - GB_TERM_HEIGHT) / 2));
 
     this.gameboyScreen = new FrameBufferRenderable(this.renderer, {
       id: 'gameboy-screen',
-      width: GB_SCREEN_WIDTH,
-      height: GB_SCREEN_HEIGHT,
+      width: GB_TERM_WIDTH,
+      height: GB_TERM_HEIGHT,
       position: 'absolute',
-      left: Math.max(0, left),
-      top: Math.max(0, top),
+      left,
+      top,
       zIndex: 1000,
     });
     this.renderer.root.add(this.gameboyScreen);
@@ -273,7 +279,6 @@ export class GameboyUI {
 
     const saveBinding = this.options.saveKeybinding ?? DEFAULT_SAVE_KEYBINDING;
     const loadBinding = this.options.loadKeybinding ?? DEFAULT_LOAD_KEYBINDING;
-
     const helpLine2 = new TextRenderable(this.renderer, {
       id: 'gameboy-game-help-2',
       content:
@@ -287,8 +292,200 @@ export class GameboyUI {
 
     this.isRunning = true;
     this.engine!.active = true;
+    this.gameLoopCount = 0;
+    this.lastTerminalWidth = this.renderer.terminalWidth;
+    this.lastTerminalHeight = this.renderer.terminalHeight;
 
-    // Input Mapping
+    this.setupGameInput(rom, romBuffer);
+    this.renderer.setFrameCallback((delta) => this.gameLoop(delta));
+  }
+
+  private async gameLoop(_deltaMs: number) {
+    if (!this.isRunning) return;
+
+    if (
+      this.renderer.terminalWidth !== this.lastTerminalWidth ||
+      this.renderer.terminalHeight !== this.lastTerminalHeight
+    ) {
+      this.handleResize();
+    }
+
+    const now = Date.now();
+    const AUTO_RELEASE_MS = 150;
+    this.heldKeys.forEach((key) => {
+      const pressTime = this.keyPressTimestamps.get(key);
+      if (pressTime && now - pressTime > AUTO_RELEASE_MS) {
+        this.heldKeys.delete(key);
+        this.keyPressTimestamps.delete(key);
+      }
+    });
+    this.heldKeys.forEach((key) => this.engine!.pressKey(key));
+
+    this.gameLoopCount++;
+    this.engine!.doFrame();
+
+    const pixels = this.engine!.getScreen();
+    if (pixels && pixels.length > 0) {
+      this.renderFrame(pixels);
+    }
+
+    if (this.gameLoopCount === 60) safeRemove(this.renderer, 'gameboy-startup');
+    this.renderer.requestRender();
+  }
+
+  private handleResize() {
+    safeRemove(this.renderer, 'gameboy-background');
+    this.renderer.root.add(createBackground(this.renderer));
+
+    const left = Math.max(0, Math.floor((this.renderer.terminalWidth - GB_TERM_WIDTH) / 2));
+    const top = Math.max(0, Math.floor((this.renderer.terminalHeight - GB_TERM_HEIGHT) / 2));
+
+    this.renderer.root.remove('gameboy-screen');
+    this.gameboyScreen = new FrameBufferRenderable(this.renderer, {
+      id: 'gameboy-screen',
+      width: GB_TERM_WIDTH,
+      height: GB_TERM_HEIGHT,
+      position: 'absolute',
+      left,
+      top,
+      zIndex: 1000,
+    });
+    this.renderer.root.add(this.gameboyScreen);
+
+    this.lastTerminalWidth = this.renderer.terminalWidth;
+    this.lastTerminalHeight = this.renderer.terminalHeight;
+  }
+
+  private renderFrame(pixels: Uint8Array) {
+    const fb = this.gameboyScreen!.frameBuffer;
+    for (let y = 0; y < GB_TERM_HEIGHT; y++) {
+      const row1Offset = (y << 1) * GB_TERM_WIDTH;
+      const row2Offset = row1Offset + GB_TERM_WIDTH;
+      for (let x = 0; x < GB_TERM_WIDTH; x++) {
+        const idx1 = (row1Offset + x) << 2;
+        const idx2 = (row2Offset + x) << 2;
+
+        const gray1 = toGameBoyShade(pixels[idx1], pixels[idx1 + 1], pixels[idx1 + 2]);
+        const gray2 = toGameBoyShade(pixels[idx2], pixels[idx2 + 1], pixels[idx2 + 2]);
+
+        fb.setCell(
+          x,
+          y,
+          '▀',
+          RGBA.fromInts(gray1, gray1, gray1, 255),
+          RGBA.fromInts(gray2, gray2, gray2, 255),
+        );
+      }
+    }
+  }
+
+  private cleanupGame() {
+    this.isRunning = false;
+    if (this.engine) this.engine.active = false;
+
+    this.renderer.keyInput.off('keypress', this.handleGameKey!);
+    this.renderer.keyInput.off('keyup', this.handleGameKeyUp!);
+    this.renderer.setFrameCallback(null as unknown as (deltaMs: number) => Promise<void>);
+
+    [
+      'gameboy-screen',
+      'gameboy-game-help',
+      'gameboy-startup',
+      'gameboy-status',
+      'gameboy-background',
+      'gameboy-game-help-container',
+    ].forEach((id) => safeRemove(this.renderer, id));
+
+    if (this.gameboyScreen && !this.gameboyScreen.isDestroyed) {
+      this.gameboyScreen.destroy();
+    }
+    closeLogger();
+  }
+
+  private setupGameInput(rom: RomFile, romBuffer: Buffer) {
+    this.handleGameKey = (key: KeyEvent) => {
+      if (key.name === 'c' && key.ctrl) {
+        this.ctrlCCount++;
+        if (this.ctrlCCount >= 2) {
+          this.cleanupGame();
+          if (this.options.onForceExit) this.options.onForceExit();
+          else {
+            this.renderer.destroy();
+            process.exit(0);
+          }
+        } else {
+          if (this.ctrlCTimeout) clearTimeout(this.ctrlCTimeout);
+          this.ctrlCTimeout = setTimeout(() => {
+            this.ctrlCCount = 0;
+          }, 500);
+        }
+        return true;
+      }
+
+      if (key.name === 'escape') {
+        this.escapeCount++;
+        if (this.escapeCount === 1) {
+          this.engine?.pressKey(GameboyEngine.KEYMAP.SELECT);
+          if (this.escapeTimeout) clearTimeout(this.escapeTimeout);
+          this.escapeTimeout = setTimeout(() => {
+            this.escapeCount = 0;
+          }, 500);
+          return true;
+        }
+        if (this.escapeCount >= 2) {
+          this.cleanupGame();
+          this.options.onExit();
+          return true;
+        }
+      }
+
+      const saveBinding = this.options.saveKeybinding ?? DEFAULT_SAVE_KEYBINDING;
+      const loadBinding = this.options.loadKeybinding ?? DEFAULT_LOAD_KEYBINDING;
+
+      if (this.matchBinding(key, saveBinding)) {
+        this.handleSave(rom);
+        return true;
+      }
+      if (this.matchBinding(key, loadBinding)) {
+        this.handleLoad(rom, romBuffer);
+        return true;
+      }
+
+      const gbKey = this.getGBKey(key.name);
+      if (gbKey !== undefined) {
+        this.heldKeys.add(gbKey);
+        this.keyPressTimestamps.set(gbKey, Date.now());
+        this.engine?.pressKey(gbKey);
+        return true;
+      }
+      return false;
+    };
+
+    this.handleGameKeyUp = (key: KeyEvent) => {
+      const gbKey = this.getGBKey(key.name);
+      if (gbKey !== undefined) {
+        this.heldKeys.delete(gbKey);
+        this.keyPressTimestamps.delete(gbKey);
+      }
+    };
+
+    this.renderer.keyInput.on('keypress', this.handleGameKey);
+    this.renderer.keyInput.on('keyup', this.handleGameKeyUp);
+  }
+
+  private matchBinding(
+    key: KeyEvent,
+    binding: { key: string; ctrl?: boolean; shift?: boolean; alt?: boolean },
+  ): boolean {
+    return (
+      key.name === binding.key &&
+      !!key.ctrl === !!binding.ctrl &&
+      !!key.shift === !!binding.shift &&
+      !!key.option === !!binding.alt
+    );
+  }
+
+  private getGBKey(name: string): number | undefined {
     const keyMap: Record<string, number> = {
       up: GameboyEngine.KEYMAP.UP,
       down: GameboyEngine.KEYMAP.DOWN,
@@ -300,194 +497,11 @@ export class GameboyUI {
       enter: GameboyEngine.KEYMAP.START,
       shift: GameboyEngine.KEYMAP.SELECT,
     };
-
-    const heldKeys: Set<number> = new Set();
-    let escapeCount = 0;
-    let escapeTimeout: ReturnType<typeof setTimeout> | null = null;
-    let ctrlCCount = 0;
-    let ctrlCTimeout: ReturnType<typeof setTimeout> | null = null;
-    const keyPressTimestamps: Map<number, number> = new Map();
-    const AUTO_RELEASE_MS = 150;
-
-    const cleanup = () => {
-      this.isRunning = false;
-      this.engine!.active = false;
-      this.renderer.keyInput.off('keypress', keyHandler);
-      this.renderer.keyInput.off('keyup', keyReleaseHandler);
-      this.renderer.setFrameCallback(null as unknown as (deltaMs: number) => Promise<void>);
-
-      const elementsToRemove = [
-        'gameboy-screen',
-        'gameboy-game-help',
-        'gameboy-startup',
-        'gameboy-status',
-        'gameboy-background',
-        'gameboy-game-help-container',
-      ];
-      elementsToRemove.forEach((id) => safeRemove(this.renderer, id));
-
-      if (this.gameboyScreen && !this.gameboyScreen.isDestroyed) {
-        this.gameboyScreen.destroy();
-      }
-      closeLogger();
-    };
-
-    const keyHandler = (key: KeyEvent) => {
-      if (key.name === 'c' && key.ctrl) {
-        ctrlCCount++;
-        if (ctrlCCount >= 2) {
-          cleanup();
-          if (this.options.onForceExit) this.options.onForceExit();
-          else {
-            this.renderer.destroy();
-            process.exit(0);
-          }
-        } else {
-          if (ctrlCTimeout) clearTimeout(ctrlCTimeout);
-          ctrlCTimeout = setTimeout(() => {
-            ctrlCCount = 0;
-          }, 500);
-        }
-        return true;
-      }
-
-      if (key.name === 'escape') {
-        escapeCount++;
-        if (escapeCount === 1) {
-          this.engine!.pressKey(GameboyEngine.KEYMAP.SELECT);
-          if (escapeTimeout) clearTimeout(escapeTimeout);
-          escapeTimeout = setTimeout(() => {
-            escapeCount = 0;
-          }, 500);
-          return true;
-        }
-        if (escapeCount >= 2) {
-          cleanup();
-          this.options.onExit();
-          return true;
-        }
-      }
-
-      // Save/Load
-      if (
-        key.name === saveBinding.key &&
-        !!key.ctrl === !!saveBinding.ctrl &&
-        !!key.shift === !!saveBinding.shift &&
-        !!key.option === !!saveBinding.alt
-      ) {
-        this.handleSave(rom);
-        return true;
-      }
-      if (
-        key.name === loadBinding.key &&
-        !!key.ctrl === !!loadBinding.ctrl &&
-        !!key.shift === !!loadBinding.shift &&
-        !!key.option === !!loadBinding.alt
-      ) {
-        this.handleLoad(rom, romBuffer);
-        return true;
-      }
-
-      const gbKey = keyMap[key.name];
-      if (gbKey !== undefined) {
-        heldKeys.add(gbKey);
-        keyPressTimestamps.set(gbKey, Date.now());
-        this.engine!.pressKey(gbKey);
-        return true;
-      }
-      return false;
-    };
-
-    const keyReleaseHandler = (key: KeyEvent) => {
-      const gbKey = keyMap[key.name];
-      if (gbKey !== undefined) {
-        heldKeys.delete(gbKey);
-        keyPressTimestamps.delete(gbKey);
-      }
-    };
-
-    this.renderer.keyInput.on('keypress', keyHandler);
-    this.renderer.keyInput.on('keyup', keyReleaseHandler);
-
-    let gameLoopCount = 0;
-    let lastTerminalWidth = this.renderer.terminalWidth;
-    let lastTerminalHeight = this.renderer.terminalHeight;
-
-    const gameLoop = async (_deltaMs: number) => {
-      if (!this.isRunning) return;
-
-      if (
-        this.renderer.terminalWidth !== lastTerminalWidth ||
-        this.renderer.terminalHeight !== lastTerminalHeight
-      ) {
-        safeRemove(this.renderer, 'gameboy-background');
-        this.renderer.root.add(createBackground(this.renderer));
-        const newLeft = Math.max(
-          0,
-          Math.floor((this.renderer.terminalWidth - GB_SCREEN_WIDTH) / 2),
-        );
-        const newTop = Math.max(
-          0,
-          Math.floor((this.renderer.terminalHeight - GB_SCREEN_HEIGHT) / 2),
-        );
-        this.renderer.root.remove('gameboy-screen');
-        this.gameboyScreen = new FrameBufferRenderable(this.renderer, {
-          id: 'gameboy-screen',
-          width: GB_SCREEN_WIDTH,
-          height: GB_SCREEN_HEIGHT,
-          position: 'absolute',
-          left: newLeft,
-          top: newTop,
-          zIndex: 1000,
-        });
-        this.renderer.root.add(this.gameboyScreen);
-        lastTerminalWidth = this.renderer.terminalWidth;
-        lastTerminalHeight = this.renderer.terminalHeight;
-      }
-
-      const now = Date.now();
-      heldKeys.forEach((key) => {
-        const pressTime = keyPressTimestamps.get(key);
-        if (pressTime && now - pressTime > AUTO_RELEASE_MS) {
-          heldKeys.delete(key);
-          keyPressTimestamps.delete(key);
-        }
-      });
-      heldKeys.forEach((key) => this.engine!.pressKey(key));
-
-      gameLoopCount++;
-      this.engine!.doFrame();
-
-      const pixels = this.engine!.getScreen();
-      if (pixels && pixels.length > 0) {
-        const fb = this.gameboyScreen!.frameBuffer;
-        for (let y = 0; y < 72; y++) {
-          const row1Offset = (y << 1) * 160;
-          const row2Offset = row1Offset + 160;
-          for (let x = 0; x < 160; x++) {
-            const idx1 = (row1Offset + x) << 2;
-            const idx2 = (row2Offset + x) << 2;
-
-            const gray1 = toGameBoyShade(pixels[idx1], pixels[idx1 + 1], pixels[idx1 + 2]);
-            const gray2 = toGameBoyShade(pixels[idx2], pixels[idx2 + 1], pixels[idx2 + 2]);
-
-            fb.setCell(
-              x,
-              y,
-              '▀',
-              RGBA.fromInts(gray1, gray1, gray1, 255),
-              RGBA.fromInts(gray2, gray2, gray2, 255),
-            );
-          }
-        }
-      }
-
-      if (gameLoopCount === 60) safeRemove(this.renderer, 'gameboy-startup');
-      this.renderer.requestRender();
-    };
-
-    this.renderer.setFrameCallback(gameLoop);
+    return keyMap[name];
   }
+
+  private handleGameKey?: (key: KeyEvent) => boolean;
+  private handleGameKeyUp?: (key: KeyEvent) => void;
 
   private handleSave(rom: RomFile) {
     const statusText = new TextRenderable(this.renderer, {
@@ -535,22 +549,18 @@ export class GameboyUI {
 
   private handleSmallTerminal(rom: RomFile, romBuffer: Buffer) {
     const { theme, onExit } = this.options;
-    const GB_SCREEN_WIDTH = 160;
-    const GB_SCREEN_HEIGHT = 72;
     const warning = createWarning(
       this.renderer,
       theme,
       this.renderer.terminalWidth,
       this.renderer.terminalHeight,
-      GB_SCREEN_WIDTH,
-      GB_SCREEN_HEIGHT + 4,
     );
     this.renderer.root.add(warning);
 
     const checkInterval = setInterval(() => {
       if (
-        this.renderer.terminalWidth >= GB_SCREEN_WIDTH &&
-        this.renderer.terminalHeight >= GB_SCREEN_HEIGHT + 4
+        this.renderer.terminalWidth >= GB_TERM_WIDTH &&
+        this.renderer.terminalHeight >= GB_MIN_TERM_HEIGHT
       ) {
         clearInterval(checkInterval);
         this.renderer.keyInput.off('keypress', checkSizeOrExit);

@@ -5,17 +5,11 @@ let logFileHandle: { write: (s: string) => void; flush: () => void; end: () => v
 let debugEnabled = false;
 let logFilePath: string | undefined;
 
-/**
- * Initialize the internal logger
- */
 export function initLogger(debug: boolean, logFile?: string) {
   debugEnabled = debug;
   logFilePath = logFile;
 }
 
-/**
- * Internal logger function
- */
 export function gameboyLog(...args: unknown[]) {
   if (!debugEnabled) return;
 
@@ -47,9 +41,6 @@ export function gameboyLog(...args: unknown[]) {
   }
 }
 
-/**
- * Close the log file handle
- */
 export function closeLogger() {
   if (logFileHandle) {
     try {

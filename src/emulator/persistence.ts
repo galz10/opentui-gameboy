@@ -22,23 +22,19 @@ export async function saveGameState(
 ): Promise<boolean> {
   try {
     const saveData = serverboy.getSaveData();
-    if (!saveData || saveData.length === 0) {
-      gameboyLog('[GameBoy] Save failed: No save data (game may not support battery saves)');
+    if (!saveData?.length) {
+      gameboyLog('[GameBoy] Save failed: No save data');
       return false;
     }
-
-    gameboyLog('[GameBoy] Got save data, length:', saveData.length);
 
     const gameSaveDir = getGameSaveDir(saveDirectory, romName);
     mkdirSync(gameSaveDir, { recursive: true });
 
-    const savePath = join(gameSaveDir, `slot${slot}.sav`);
-    await writeFile(savePath, Buffer.from(saveData));
+    const buffer = Buffer.from(saveData);
+    await writeFile(join(gameSaveDir, `slot${slot}.sav`), buffer);
+    await writeFile(join(gameSaveDir, 'latest.sav'), buffer);
 
-    const latestPath = join(gameSaveDir, 'latest.sav');
-    await writeFile(latestPath, Buffer.from(saveData));
-
-    gameboyLog(`[GameBoy] Game saved to slot ${slot}: ${savePath}`);
+    gameboyLog(`[GameBoy] Game saved to slot ${slot}`);
     return true;
   } catch (err) {
     gameboyLog('[GameBoy] Save error:', err);
@@ -57,20 +53,12 @@ export async function loadGameState(
   slot: number = 0,
 ): Promise<boolean> {
   try {
-    const gameSaveDir = getGameSaveDir(saveDirectory, romName);
-    const savePath = join(gameSaveDir, `slot${slot}.sav`);
-    if (!existsSync(savePath)) {
-      gameboyLog(`[GameBoy] No save found in slot ${slot}`);
-      return false;
-    }
+    const savePath = join(getGameSaveDir(saveDirectory, romName), `slot${slot}.sav`);
+    if (!existsSync(savePath)) return false;
 
     const data = await readFile(savePath);
-    const saveData = Array.from(data);
-
-    gameboyLog('[GameBoy] Loaded save data, length:', saveData.length);
-
-    serverboy.loadRom(romBuffer, saveData);
-    gameboyLog(`[GameBoy] ROM reloaded with save data from slot ${slot}: ${savePath}`);
+    serverboy.loadRom(romBuffer, Array.from(data));
+    gameboyLog(`[GameBoy] Game loaded from slot ${slot}`);
     return true;
   } catch (err) {
     gameboyLog('[GameBoy] Load error:', err);
@@ -86,14 +74,8 @@ export async function loadLatestSave(
   romName: string,
 ): Promise<number[] | undefined> {
   try {
-    const gameSaveDir = getGameSaveDir(saveDirectory, romName);
-    const latestPath = join(gameSaveDir, 'latest.sav');
-    if (!existsSync(latestPath)) {
-      return undefined;
-    }
-
-    const data = await readFile(latestPath);
-    return Array.from(data);
+    const latestPath = join(getGameSaveDir(saveDirectory, romName), 'latest.sav');
+    return existsSync(latestPath) ? Array.from(await readFile(latestPath)) : undefined;
   } catch (err) {
     gameboyLog('[GameBoy] Could not load latest save:', err);
     return undefined;

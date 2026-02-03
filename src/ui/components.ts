@@ -1,20 +1,14 @@
 import { CliRenderer, BoxRenderable, RGBA, TextRenderable, TextAttributes } from '@opentui/core';
-import { GameboyTheme, Keybinding } from '../types';
+import { GameboyTheme, Keybinding, GB_TERM_WIDTH, GB_MIN_TERM_HEIGHT } from '../types';
 
-/**
- * Safely remove a renderable from the root container
- */
 export function safeRemove(renderer: CliRenderer, id: string): void {
   try {
     renderer.root.remove(id);
   } catch {
-    // Ignore if already removed or doesn't exist
+    // Already removed
   }
 }
 
-/**
- * Format a keybinding for display in help text
- */
 export function formatKeybinding(binding: Keybinding): string {
   const parts: string[] = [];
   if (binding.ctrl) parts.push('Ctrl');
@@ -24,9 +18,6 @@ export function formatKeybinding(binding: Keybinding): string {
   return parts.join('+');
 }
 
-/**
- * Create a full-screen black background overlay
- */
 export function createBackground(renderer: CliRenderer): BoxRenderable {
   return new BoxRenderable(renderer, {
     id: 'gameboy-background',
@@ -40,16 +31,11 @@ export function createBackground(renderer: CliRenderer): BoxRenderable {
   });
 }
 
-/**
- * Create a full-screen terminal-too-small warning overlay
- */
 export function createWarning(
   renderer: CliRenderer,
   theme: GameboyTheme,
   currentWidth: number,
   currentHeight: number,
-  neededWidth: number,
-  neededHeight: number,
 ): BoxRenderable {
   const warningContainer = new BoxRenderable(renderer, {
     id: 'gameboy-warning',
@@ -65,7 +51,7 @@ export function createWarning(
     alignItems: 'center',
   });
 
-  const warningTitle = new TextRenderable(renderer, {
+  const title = new TextRenderable(renderer, {
     id: 'gameboy-warning-title',
     content: 'Terminal Too Small',
     fg: RGBA.fromHex(theme.accent),
@@ -73,38 +59,38 @@ export function createWarning(
     marginBottom: 1,
   });
 
-  const warningText = new TextRenderable(renderer, {
+  const stats = new TextRenderable(renderer, {
     id: 'gameboy-warning-text',
-    content: `Current: ${currentWidth}x${currentHeight} | Needed: ${neededWidth}x${neededHeight}`,
+    content: `Current: ${currentWidth}x${currentHeight} | Needed: ${GB_TERM_WIDTH}x${GB_MIN_TERM_HEIGHT}`,
     fg: RGBA.fromHex(theme.text),
     marginBottom: 2,
   });
 
-  const instructionText = new TextRenderable(renderer, {
+  const instructions = new TextRenderable(renderer, {
     id: 'gameboy-warning-instruction',
     content: 'Please zoom OUT your terminal',
     fg: RGBA.fromHex(theme.accent),
     marginBottom: 1,
   });
 
-  const shortcutText = new TextRenderable(renderer, {
+  const shortcuts = new TextRenderable(renderer, {
     id: 'gameboy-warning-shortcut',
     content: 'Cmd + -  (Mac)   or   Ctrl + -  (Linux/Windows)',
     fg: RGBA.fromHex(theme.dim),
     marginBottom: 2,
   });
 
-  const exitTextWarning = new TextRenderable(renderer, {
+  const exit = new TextRenderable(renderer, {
     id: 'gameboy-warning-exit',
     content: 'Press ESC to go back',
     fg: RGBA.fromHex(theme.text),
   });
 
-  warningContainer.add(warningTitle);
-  warningContainer.add(warningText);
-  warningContainer.add(instructionText);
-  warningContainer.add(shortcutText);
-  warningContainer.add(exitTextWarning);
+  warningContainer.add(title);
+  warningContainer.add(stats);
+  warningContainer.add(instructions);
+  warningContainer.add(shortcuts);
+  warningContainer.add(exit);
 
   return warningContainer;
 }
