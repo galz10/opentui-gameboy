@@ -181,6 +181,14 @@ A complete example is available in the `examples/basic` directory. To run it:
 3. Place ROMs in `examples/roms/`
 4. Run the example: `bun run dev:example`
 
+## Development Commands
+
+- **Type Check:** `bun run check` (runs `tsc --noEmit`)
+- **Lint:** `bun run lint` (runs `eslint` and `prettier` checks)
+- **Test:** `bun run test` (runs `bun test`)
+- **Build:** `bun run build` (builds with Bun and generates type declarations)
+- **Preflight:** `bun run preflight` (runs lint, check, test, and build)
+
 ## Requirements
 
 - Bun or Node.js

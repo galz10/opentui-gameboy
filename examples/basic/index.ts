@@ -1,13 +1,13 @@
-import { createCliRenderer } from "@opentui/core";
-import { launchGameboy, DEFAULT_THEME } from "../../src/index";
-import { join } from "node:path";
+import { createCliRenderer } from '@opentui/core';
+import { launchGameboy, DEFAULT_THEME } from '../../src/index';
+import { join } from 'node:path';
 
 async function main() {
   const renderer = await createCliRenderer();
 
   await launchGameboy(renderer, {
-    romDirectory: join(import.meta.dir, "..", "roms"),
-    saveDirectory: join(import.meta.dir, "..", "saves"),
+    romDirectory: join(import.meta.dir, '..', 'roms'),
+    saveDirectory: join(import.meta.dir, '..', 'saves'),
     theme: DEFAULT_THEME,
     onExit: () => {
       renderer.destroy();
@@ -17,7 +17,7 @@ async function main() {
       renderer.destroy();
       process.exit(0);
     },
-    debug: true
+    debug: true,
   });
 
   renderer.start();

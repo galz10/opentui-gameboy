@@ -1,47 +1,47 @@
-import { expect, test, describe, mock, spyOn, beforeEach } from "bun:test";
-import { GameboyUI } from "./renderer";
+import { expect, test, describe, spyOn, beforeEach } from 'bun:test';
+import { GameboyUI } from './renderer';
 
-describe("GameboyUI", () => {
+describe('GameboyUI', () => {
   let mockRenderer: any;
   let options: any;
 
   beforeEach(() => {
     mockRenderer = {
       root: {
-        add: spyOn({ add: () => {} }, "add"),
-        remove: spyOn({ remove: () => {} }, "remove")
+        add: spyOn({ add: () => {} }, 'add'),
+        remove: spyOn({ remove: () => {} }, 'remove'),
       },
       keyInput: {
-        on: spyOn({ on: () => {} }, "on"),
-        off: spyOn({ off: () => {} }, "off")
+        on: spyOn({ on: () => {} }, 'on'),
+        off: spyOn({ off: () => {} }, 'off'),
       },
-      requestRender: spyOn({ requestRender: () => {} }, "requestRender"),
+      requestRender: spyOn({ requestRender: () => {} }, 'requestRender'),
       terminalWidth: 200,
       terminalHeight: 100,
-      setFrameCallback: spyOn({ setFrameCallback: () => {} }, "setFrameCallback")
+      setFrameCallback: spyOn({ setFrameCallback: () => {} }, 'setFrameCallback'),
     };
 
     options = {
-      romDirectory: "./roms",
-      saveDirectory: "./saves",
+      romDirectory: './roms',
+      saveDirectory: './saves',
       theme: {
-        bg: "#000000",
-        text: "#ffffff",
-        accent: "#00ff00",
-        dim: "#888888",
-        darkAccent: "#222222",
-        surface: "#111111"
+        bg: '#000000',
+        text: '#ffffff',
+        accent: '#00ff00',
+        dim: '#888888',
+        darkAccent: '#222222',
+        surface: '#111111',
       },
-      onExit: () => {}
+      onExit: () => {},
     };
   });
 
-  test("constructor initializes correctly", () => {
+  test('constructor initializes correctly', () => {
     const ui = new GameboyUI(mockRenderer, options);
     expect(ui).toBeDefined();
   });
 
-  test("can be instantiated", () => {
+  test('can be instantiated', () => {
     const ui = new GameboyUI(mockRenderer, options);
     expect(ui instanceof GameboyUI).toBe(true);
   });

@@ -1,10 +1,10 @@
-import { CliRenderer } from "@opentui/core";
-import { GameboyOptions } from "./types";
-import { initLogger, gameboyLog } from "./utils/logger";
-import { GameboyUI } from "./ui/renderer";
+import { CliRenderer } from '@opentui/core';
+import { GameboyOptions } from './types';
+import { initLogger, gameboyLog } from './utils/logger';
+import { GameboyUI } from './ui/renderer';
 
 // Re-export types and defaults for public API
-export * from "./types";
+export * from './types';
 
 let _active = false;
 
@@ -23,7 +23,7 @@ export function isGameboyActive(): boolean {
  */
 export async function launchGameboy(renderer: CliRenderer, options: GameboyOptions): Promise<void> {
   initLogger(options.debug ?? false, options.logFile);
-  gameboyLog("[GameBoy] launchGameboy called");
+  gameboyLog('[GameBoy] launchGameboy called');
 
   const originalOnExit = options.onExit;
   const wrappedOptions: GameboyOptions = {
@@ -31,7 +31,7 @@ export async function launchGameboy(renderer: CliRenderer, options: GameboyOptio
     onExit: () => {
       _active = false;
       originalOnExit();
-    }
+    },
   };
 
   _active = true;

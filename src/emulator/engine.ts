@@ -1,7 +1,7 @@
-// @ts-ignore - serverboy uses CommonJS export
-import Serverboy from "serverboy";
-import { GB_NATIVE_WIDTH, GB_NATIVE_HEIGHT, ServerboyInstance } from "../types";
-import { gameboyLog } from "../utils/logger";
+// @ts-expect-error - serverboy uses CommonJS export
+import Serverboy from 'serverboy';
+import { ServerboyInstance } from '../types';
+import { gameboyLog } from '../utils/logger';
 
 export class GameboyEngine {
   public serverboy: ServerboyInstance;
@@ -10,9 +10,9 @@ export class GameboyEngine {
   constructor() {
     try {
       this.serverboy = new Serverboy();
-      gameboyLog("[GameBoy] Serverboy instance created");
+      gameboyLog('[GameBoy] Serverboy instance created');
     } catch (err) {
-      gameboyLog("[GameBoy] ERROR creating serverboy instance:", err);
+      gameboyLog('[GameBoy] ERROR creating serverboy instance:', err);
       throw err;
     }
   }

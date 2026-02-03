@@ -1,36 +1,34 @@
-import { expect, test, describe, spyOn, mock, beforeEach } from "bun:test";
-import { isGameboyActive, launchGameboy } from "./index";
+import { expect, test, describe, mock } from 'bun:test';
+import { isGameboyActive, launchGameboy } from './index';
+import { CliRenderer } from '@opentui/core';
+import { GameboyOptions } from './types';
 
 // Mock the UI to prevent actual rendering
-mock.module("./ui/renderer", () => ({
+mock.module('./ui/renderer', () => ({
   GameboyUI: class {
     showRomSelection = async () => {};
-  }
+  },
 }));
 
-describe("Entry Point", () => {
-  beforeEach(() => {
-    // Reset internal state if possible, or just accept it's a singleton
-  });
-
-  test("isGameboyActive defaults to false", () => {
+describe('Entry Point', () => {
+  test('isGameboyActive defaults to false', () => {
     // Note: If previous tests or this test run in same process, this might be true
     // In a clean environment it should be false.
   });
 
-  test("launchGameboy sets active state", async () => {
+  test('launchGameboy sets active state', async () => {
     const mockRenderer = {
       terminalWidth: 100,
       terminalHeight: 100,
       root: { add: () => {} },
-      keyInput: { on: () => {} }
-    } as any;
+      keyInput: { on: () => {} },
+    } as unknown as CliRenderer;
 
-    const options = {
-      romDirectory: "./roms",
-      saveDirectory: "./saves",
+    const options: GameboyOptions = {
+      romDirectory: './roms',
+      saveDirectory: './saves',
       theme: {} as any,
-      onExit: () => {}
+      onExit: () => {},
     };
 
     const promise = launchGameboy(mockRenderer, options);

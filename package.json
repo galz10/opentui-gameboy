@@ -20,7 +20,8 @@
     "prepublishOnly": "bun run build",
     "dev:example": "bun run examples/basic/index.ts",
     "test": "bun test",
-    "preflight": "bun run check && bun run test && bun run build"
+    "lint": "eslint 'src/**/*.ts' 'examples/**/*.ts'",
+    "preflight": "bun run lint && bun run check && bun run test && bun run build"
   },
   "keywords": [
     "gameboy",
@@ -40,6 +41,12 @@
   "devDependencies": {
     "@opentui/core": "0.1.75",
     "@types/bun": "^1.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "prettier": "^3.8.1",
     "typescript": "^5.0.0"
   }
 }

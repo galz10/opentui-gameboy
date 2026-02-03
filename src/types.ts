@@ -1,5 +1,3 @@
-import { RGBA } from "@opentui/core";
-
 export const GB_NATIVE_WIDTH = 160;
 export const GB_NATIVE_HEIGHT = 144;
 
@@ -78,21 +76,21 @@ export interface ServerboyInstance {
 /**
  * Default save keybinding (Ctrl+S)
  */
-export const DEFAULT_SAVE_KEYBINDING: Keybinding = { key: "s", ctrl: true };
+export const DEFAULT_SAVE_KEYBINDING: Keybinding = { key: 's', ctrl: true };
 
 /**
  * Default load keybinding (Ctrl+L)
  */
-export const DEFAULT_LOAD_KEYBINDING: Keybinding = { key: "l", ctrl: true };
+export const DEFAULT_LOAD_KEYBINDING: Keybinding = { key: 'l', ctrl: true };
 
 /**
  * Default theme matching a dark terminal aesthetic
  */
 export const DEFAULT_THEME: GameboyTheme = {
-  bg: "#0d1117",
-  text: "#c9d1d9",
-  accent: "#58a6ff",
-  dim: "#6e7681",
-  darkAccent: "#30363d",
-  surface: "#161b22",
+  bg: '#0d1117',
+  text: '#c9d1d9',
+  accent: '#58a6ff',
+  dim: '#6e7681',
+  darkAccent: '#30363d',
+  surface: '#161b22',
 };
