@@ -1,141 +1,95 @@
-# AGENTS.md - Agentic Coding Guidelines
+# Agent Instructions for opentui-gameboy
 
-## Project Overview
+This file provides guidance for AI agents working in this repository.
 
-This is **opentui-gameboy**, a TypeScript library that provides a plug-and-play GameBoy emulator component for @opentui/core. It uses the `serverboy` package for emulation and renders to the terminal using OpenTUI's rendering system.
-
-## Build/Lint/Test Commands
-
-All commands use Bun (this is a Bun-native project):
+## Build Commands
 
 ```bash
-# Type check without emitting
-bun run check
-
-# Build the project (compiles to dist/)
-bun run build
-
-# Run a single test file (when tests exist)
-bun test path/to/test.ts
-
-# Run all tests
-bun test
-
-# Install dependencies
-bun install
+bun run check          # TypeScript type checking (tsc --noEmit)
+bun run lint           # ESLint + Prettier checks
+bun run test           # Run all tests with Bun test runner
+bun test path/to/file.test.ts   # Run a single test file
+bun run build          # Compile to dist/ and generate .d.ts files
+bun run preflight      # Run lint → check → test → build (pre-release)
+bun run dev:example    # Run example: examples/basic/index.ts
 ```
-
-**Note:** There are currently no test files in this project. When adding tests, use Bun's built-in test runner with the pattern `*.test.ts` or `*.spec.ts`.
 
 ## Code Style Guidelines
 
-### TypeScript Configuration
+### TypeScript
 
-- **Target:** ES2022 with ESNext modules
-- **Strict mode:** Enabled (all strict checks on)
-- **Module resolution:** Bundler
-- **Declaration files:** Emitted to `./dist`
+- **Strict mode enabled** - never use `any` (enforced by ESLint, except in test files)
+- Use `interface` for exported object shapes, `type` for unions/aliases
+- JSDoc comments required for all exported functions and types
+- Target: ES2022, Module: ESNext, ModuleResolution: bundler
 
-### Formatting
+### Formatting (Prettier)
 
-- **Indentation:** 2 spaces (no tabs)
-- **Quotes:** Double quotes for strings
-- **Semicolons:** Required at end of statements
-- **Trailing commas:** Use in multi-line objects/arrays
-- **Line endings:** LF
+- 2 spaces indentation
+- Single quotes
+- Semicolons required
+- 100 character line width
+- Trailing commas: all
 
 ### Naming Conventions
 
-- **Variables/functions:** camelCase (`gameboyScreen`, `launchGameboy`)
-- **Constants:** UPPER_CASE with underscores (`GB_NATIVE_WIDTH`, `DEFAULT_THEME`)
-- **Types/interfaces:** PascalCase (`GameboyTheme`, `Keybinding`)
-- **Private/internal:** Prefix with underscore (`_isGameboyActive`)
+- Variables/functions: `camelCase` (`gameboyScreen`, `launchGameboy`)
+- Constants: `UPPER_CASE` (`GB_NATIVE_WIDTH`, `DEFAULT_THEME`)
+- Types/interfaces: `PascalCase` (`GameboyTheme`, `GameboyOptions`)
+- Private/internal: underscore prefix (`_active`, `_isGameboyActive`)
+- Classes: `PascalCase` (`GameboyUI`, `GameboyEngine`)
 
 ### Imports
 
-- Use ES modules (`import/export`)
-- Node.js built-ins: Use `node:` prefix (e.g., `import { join } from "node:path"`)
-- External packages: Standard import
-- Order: External imports first, then internal
-
-Example:
-```typescript
-import { CliRenderer, FrameBufferRenderable } from "@opentui/core";
-import { join } from "node:path";
-import { readdir } from "node:fs/promises";
-// @ts-ignore - serverboy uses CommonJS export
-import Serverboy from "serverboy";
-```
-
-### Types & Interfaces
-
-- Use `interface` for object shapes that will be exported
-- Use `type` for unions/complex types
-- Explicit return types on exported functions
-- Use JSDoc comments for all exported members
-
-Example:
-```typescript
-/**
- * Theme configuration for the GameBoy emulator UI
- */
-export interface GameboyTheme {
-  /** Background color (hex) */
-  bg: string;
-  /** Text color (hex) */
-  text: string;
-}
-```
+- Node.js built-ins use `node:` prefix: `import { join } from "node:path"`
+- External packages first, then internal relative imports
+- Order: external → internal (parent dirs) → local (same/child dirs)
 
 ### Error Handling
 
-- Use try/catch for async operations
-- Log errors via the internal `gameboyLog` function when available
-- Return boolean success/failure for operations that can fail
-- Use optional chaining and nullish coalescing where appropriate
+- Use try-catch for async operations (file I/O, etc.)
+- Log errors via `gameboyLog()` utility
+- Return boolean success/failure for operations where appropriate
+- For CommonJS imports, use `// @ts-expect-error` comment (see serverboy import)
 
-Example:
-```typescript
-try {
-  const data = await readFile(savePath);
-  return Array.from(data);
-} catch (err) {
-  gameboyLog("[GameBoy] Load error:", err);
-  return undefined;
-}
+## Architecture
+
+### Directory Structure
+
+- `src/index.ts` - Public API entry point
+- `src/types.ts` - All type definitions, constants, and defaults
+- `src/emulator/` - Emulation engine (engine.ts, persistence.ts)
+- `src/ui/` - Terminal rendering and UI components (renderer.ts, components.ts)
+- `src/utils/` - Shared utilities (color.ts, logger.ts)
+- `examples/` - Usage examples and demo ROMs
+
+### Key Patterns
+
+- Rendering uses vertical half-block technique (160x72 terminal cells for 160x144 pixels)
+- Serverboy emulator integration uses CommonJS with ts-expect-error
+- Save files: `{saveDirectory}/{GameName}/{slot0.sav,latest.sav}`
+- Debug logging available via `initLogger()` and `gameboyLog()`
+
+## Testing
+
+- Framework: Bun's native test runner (`bun:test`)
+- Naming: `*.test.ts` alongside source files
+- Aim for 100% coverage on src/ directory
+- Use `mock.module()` for mocking dependencies
+- `any` type allowed in test files per eslint config
+
+## Dependencies
+
+- **Peer:** `@opentui/core >= 0.1.75`
+- **Runtime:** `serverboy ^0.0.7`
+- **Platform:** Bun (uses Bun-specific APIs like `Bun.file()`)
+
+## Before Submitting
+
+Always run preflight before committing:
+
+```bash
+bun run preflight
 ```
 
-### Comments
-
-- JSDoc for all exported types, interfaces, functions, and constants
-- Inline comments for complex logic
-- Use `// @ts-ignore` with explanation when needed
-
-### File Organization
-
-- Source files in `src/`
-- Compiled output in `dist/` (do not edit manually)
-- Single entry point: `src/index.ts`
-- No tests currently exist - add to `src/` or `tests/` directory
-
-### Dependencies
-
-- **Peer dependency:** @opentui/core >= 0.1.75
-- **Runtime dependency:** serverboy ^0.0.7
-- **Dev dependencies:** TypeScript 5.x, @types/bun
-
-### Export Pattern
-
-All public APIs are exported from `src/index.ts`:
-
-```typescript
-export { launchGameboy, isGameboyActive, DEFAULT_THEME, DEFAULT_SAVE_KEYBINDING, DEFAULT_LOAD_KEYBINDING };
-export type { GameboyOptions, GameboyTheme, Keybinding };
-```
-
-## Important Notes
-
-- This is a library package, not an application
-- Uses Bun-specific APIs (e.g., `Bun.file()`)
-- Must maintain compatibility with @opentui/core peer dependency
-- ROM files (.gb, .gbc) are not included - users provide their own
+This ensures lint, type check, tests, and build all pass.

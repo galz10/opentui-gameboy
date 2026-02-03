@@ -18,9 +18,12 @@
 ## Building and Running
 
 ### Development Commands
+- **Test:** `bun test`
 - **Type Check:** `bun run check` (runs `tsc --noEmit`)
+- **Lint:** `bun run lint` (runs `eslint`)
 - **Build:** `bun run build` (builds with Bun and generates type declarations)
-- **Lint:** No explicit linting script found; follow existing TypeScript conventions.
+- **Preflight:** `bun run preflight` (runs lint, check, test, and build)
+- **Example:** `bun run dev:example`
 
 ### Usage in Projects
 ```typescript
@@ -40,12 +43,12 @@ renderer.start();
 ## Development Conventions
 
 ### Coding Style
-- **Strict Typing:** Avoid `any` where possible (though `serverboy` types are currently suppressed with `@ts-ignore` due to CJS/ESM compatibility).
+- **Strict Typing:** Avoid `any` where possible. Recent refactoring removed many `any` usages in favor of specific types.
 - **Asynchronous IO:** Uses `node:fs/promises` for file operations.
-- **Component Design:** The emulator is encapsulated within the `launchGameboy` function, which manages its own UI lifecycle on the provided `renderer`.
+- **Component Design:** The emulator is encapsulated within the `GameboyUI` class, which manages its own UI lifecycle, input handling, and game loop.
 
 ### Rendering Details
-- **Resolution:** Native GameBoy resolution is 160x144. In the terminal, this is compressed vertically using half-blocks, requiring a minimum terminal size of 160x72.
+- **Resolution:** Native GameBoy resolution is 160x144. In the terminal, this is compressed vertically using half-blocks (160x72), requiring a minimum terminal size of approximately 160x76.
 - **Grayscale:** RGB output from `serverboy` is converted to a 4-shade grayscale palette for terminal display.
 
 ### Error Handling
@@ -53,7 +56,9 @@ renderer.start();
 - Includes a `debug` mode and log file support for troubleshooting emulator state and file IO.
 
 ## Key Files
-- `src/index.ts`: The entire implementation of the emulator component.
+- `src/index.ts`: Public API exports.
+- `src/ui/renderer.ts`: Core `GameboyUI` class handling rendering and game loop.
+- `src/emulator/engine.ts`: Wrapper for the `serverboy` emulator.
+- `src/emulator/persistence.ts`: Save/Load logic for battery saves.
+- `src/types.ts`: Centralized constants and interfaces.
 - `package.json`: Project configuration and dependencies.
-- `tsconfig.json`: TypeScript compiler settings.
-- `README.md`: End-user documentation and keybindings.
