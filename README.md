@@ -2,6 +2,9 @@
 
 A plug-and-play GameBoy emulator component for [@opentui/core](https://github.com/user/opentui).
 
+<img width="1444" height="931" alt="image" src="https://github.com/user-attachments/assets/0e725aad-cda5-4728-9e18-314e6b2350ef" />
+
+
 ## Installation
 
 ```bash
